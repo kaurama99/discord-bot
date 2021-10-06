@@ -1,9 +1,16 @@
-const { Client, Intents, DiscordAPIError } = require('discord.js');
+const { Client, Collection, Intents, DiscordAPIError } = require('discord.js');
 const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
 require('dotenv').config()
 const fs = require('fs');
 
 const prefix = process.env.PREFIX;
+client.commands = new Collection();
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles){
+  const command = require(`./commands/${file}`);
+  client.commands.set(command.data.name, command);
+}
 
 //status logging 
 client.on('ready', () => {
@@ -18,15 +25,15 @@ client.on('warning', (e) => console.warn(e));
 client.on('interactionCreate', async interaction => {
 	if (!interaction.isCommand()) return;
 
-	const { commandName } = interaction;
+	const command = client.commands.get(interaction.commandName);
+  if(!command) return;
 
-	if (commandName === 'ping') {
-		await interaction.reply('Pong!');
-	} else if (commandName === 'server') {
-		await interaction.reply(`Server name: ${interaction.guild.name}\nTotal members: ${interaction.guild.memberCount}`);
-	} else if (commandName === 'user') {
-		await interaction.reply(`Your tag: ${interaction.user.tag}\nYour id: ${interaction.user.id}`);
-	}
+  try {
+    await command.execute(interaction);
+  } catch (e) {
+    console.error(e);
+    return interaction.reply({ content: 'There was an error, death to boogie', ephemeral: true});
+  }
 });
 
 client.login(process.env.TOKEN);
